@@ -49,9 +49,10 @@ The methods are set out in detail for each estimate in a series of technical doc
 Which diseases?
 
 6 conditions are included in this release:
-        Asthma
         
-        Chronic obstructive pulmonary disease
+        Asthma (due)
+        
+        Chronic obstructive pulmonary disease (due)
         
         Depression
         
