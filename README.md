@@ -14,8 +14,10 @@ It is important to estimate disease prevalence for a number of reasons:
 - Planning and commissioning services
 - Targeting health improvement
 - Devising and developing preventive services
-- UNdersatnding and explaining use of services
+- Undersatnding and explaining use of services
 - Understanding spend in relation to disease burden
+- Evaluating preventive interventions
+- Case finding services
 
 Why estimate?
 
