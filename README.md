@@ -54,14 +54,14 @@ Which diseases?
         
         Asthma (due)
         
-        Chronic obstructive pulmonary disease (due)
+        Chronic obstructive pulmonary disease
         
         Depression
         
         Cardiovascular disease
                 CHD (heart disease)
                 Stroke
-                Peripheral arterial disease
+                Peripheral arterial disease +/- IMD
                 
         Hypertension (high blood pressure)
         
@@ -72,7 +72,7 @@ What does the data show?
 The data we have so far is available from this site. We have uploaded the Excel files for LA estimates we have available, and combined GP datasets into a single .csv file for ease of use.
 
 We haven't undertaken in depth analysis but the R script and R notebook outputs of work to date are available from https://beta.rstudioconnect.com/julian_flowers/gp_prev/.
-
+https://beta.rstudioconnect.com/connect/#/apps/1486?dopub=1
 https://beta.rstudioconnect.com/connect/#/apps/1359?dopub=1
 
 How were the estimates created?
@@ -82,9 +82,9 @@ The technical documents are all available from this site.
 How can the data be used?
 
 There are a number of ways the data might be used.
-        By General practices to
+        By General practices
 
-        By commissioners to
+        By commissioners
 
         By PH teams
 
@@ -103,3 +103,4 @@ https://beta.rstudioconnect.com/connect/#/apps/1357
 Where can I get support?
 
 How do the estimates compare with previous work?
+
