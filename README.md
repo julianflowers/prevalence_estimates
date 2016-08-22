@@ -71,8 +71,10 @@ What does the data show?
 
 The data we have so far is available from this site. We have uploaded the Excel files for LA estimates we have available, and combined GP datasets into a single .csv file for ease of use.
 
-We haven't undertaken in depth analysis but the R script and R notebook outputs of work to date are available from https://beta.rstudioconnect.com/julian_flowers/gp_prev/.
+We haven't undertaken in depth analysis but the R script and R notebook outputs of work to date are available from https://beta.rstudioconnect.com/julian_flowers/gp_prev/
+
 https://beta.rstudioconnect.com/connect/#/apps/1486?dopub=1
+
 https://beta.rstudioconnect.com/connect/#/apps/1359?dopub=1
 
 How were the estimates created?
