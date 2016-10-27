@@ -1,7 +1,9 @@
-
+## practice data extraction for prevalence estimates to create tidier output files
 
 setwd("~/Documents/R_projects/prevalence_estimates")
 
+
+## Load packages
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
@@ -11,7 +13,7 @@ suppressPackageStartupMessages(library(knitr))
 suppressPackageStartupMessages(library(haven))
 
 
-
+## unzip and store files
 unzip(zipfile = "~/Documents/R_projects/prevalence_estimates/PAD-prevalence estimates.zip", 
       exdir = "~/Documents/R_projects/prevalence_estimates")
 
@@ -35,198 +37,189 @@ unzip(zipfile = "~/Documents/R_projects/prevalence_estimates/COPD_prevalence_est
 unzip(zipfile = "~/Documents/R_projects/prevalence_estimates/COPD-prevalence-estimates.zip", 
       exdir = "~/Documents/R_projects/prevalence_estimates")
 
-## GP data - extract, combine, tidy
+## Note there are errors in the xlsx files which need correcting
+
+## gp data - extract, combine, tidy
 
 
-depress.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/Depression-prevalence-estimates-practice-level.xlsx")
+depress.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/Depression-prevalence-estimates-practice-level.xlsx")
 
-chd.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/CHD-prevalence-estimates-&-QOF-prac-level.xlsx")
+chd.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/CHD-prevalence-estimates-&-QOF-prac-level.xlsx",sheet = "EstPrev+QOFPrev")
 
-stroke.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/Stroke-estimated-prevalence-&-QOF-practice-level.xlsx")
+stroke.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/Stroke-estimated-prevalence-&-QOF-practice-level.xlsx")
 
-dxbp.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/Diagnosed-hypertension-estimates-practice-level.xlsx",3)
+dxbp.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/Diagnosed-hypertension-estimates-practice-level.xlsx",3)
 
-qofbp.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/Diagnosed-hypertension-estimates-practice-level.xlsx",1)
+qofbp.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/Diagnosed-hypertension-estimates-practice-level.xlsx",1)
 
-undxbp.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/Undiagnosed-hypertension-estimates-practice-level.xlsx")
+undxbp.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/Undiagnosed-hypertension-estimates-practice-level.xlsx")
 
-stroke1.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/Stroke-estimated-prevalence-prac-level-with-IMD.xlsx")
+stroke1.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/Stroke-estimated-prevalence-prac-level-with-IMD.xlsx")
 
-pad1.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/PAD-prevalence estimates/PAD-prevalence-estimates-&-QOF-practice-level-no-IMD.xlsx")
+pad1.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/PAD-prevalence-estimates-&-QOF-practice-level-no-IMD.xlsx")
 
-pad1imd.GP <- read_dta("~/Documents/R_projects/prevalence_estimates/PAD-prevalence estimates/PAD-prevalence-estimates-practice-level+QOF-with-IMD.dta")
+pad1imd.gp <- read_dta("~/Documents/R_projects/prevalence_estimates/PAD-prevalence-estimates-practice-level+QOF-with-IMD.dta")
 
-copd.GP <- read_excel("~/Documents/R_projects/prevalence_estimates/COPD-estimated+QOF-prevalence-practice-level.xlsx")
+copd.gp <- read_excel("~/Documents/R_projects/prevalence_estimates/COPD-estimated+QOF-prevalence-practice-level.xlsx")
 
-list <- list(depress.GP, chd.GP, stroke.GP, dxbp.GP, undxbp.GP, qofbp.GP, stroke1.GP, pad1.GP, pad1imd.GP, copd.GP )
+list <- list(depress.gp, chd.gp, stroke.gp, dxbp.gp, undxbp.gp, qofbp.gp, stroke1.gp, pad1.gp, pad1imd.gp, copd.gp )
 
 
 ## Look at table dimenstions
 sapply(list, dim)
-sapply(list, class)
+sapply(list, str)
 
-  
-  
+copd.gp <- copd.gp %>% select(practice_code, CCGgeogcode, `2011regionname`, listsize, qofprev = QOFprevalence, estimate = Estprevalence, min95, max95)
+depress.gp <- depress.gp %>% select(practice_code, qofprev, estimate, min95, max95) 
+chd.gp <- chd.gp %>% select(practice_code = practice_code, qofprev = QOFprev, estimate = Estprev, min95 = min95, max95 = max95)
+stroke.gp <- stroke.gp %>% select(practice_code = practice_code, qofprev = QOFPrev, estimate = EstPrev, min95 = min95, max95=max95) 
+dxbp.gp <- dxbp.gp %>% select(practice_code, estimate, min95, max95) 
+qofbp.gp <- qofbp.gp %>% rename(practice_code = `Practice Code`, qofprev = `QOFprevalence\r\n`)
+undxbp.gp <- undxbp.gp %>% select(practice_code, estimate, min95, max95)
+stroke1.gp <- stroke1.gp %>% select(practice_code, estimate, min95, max95)
+pad1.gp <- pad1.gp %>% select(practice_code, estimate = EstPrev, qofprev = QOFPrev, min95, max95)
+
+head(depress.gp)
+
+## join bp qof
+
+dxbp.gp <- left_join(dxbp.gp, qofbp.gp) 
+dxbp.gp <- dxbp.gp %>% select(-Estprevalence)
+
+## create lookups
+
+ccglookup <- select(copd.gp, practice_code, CCGgeogcode, `2011regionname`) %>% arrange(practice_code)
+
+listlookup <- copd.gp %>% select(practice_code,listsize)  %>% arrange(practice_code)
+
+copd.gp <- copd.gp %>% select(-CCGgeogcode, -`2011regionname`, -listsize)
+
+copd.gp <- copd.gp %>% rename(practice_code=practice_code, qofprev = QOFprevalence, estimate = Estprevalence, min95=min95, max95 = max95)
 ## Convert files to long format
  
-l_depress.GP <- gather(depress.GP, indicator, value, 2:ncol(depress.GP))
-l_chd.GP <- gather(chd.GP, indicator, value, 2:ncol(chd.GP))
-l_stroke.GP <- gather(stroke.GP, indicator, value, 2:ncol(stroke.GP))
-l_dxbp.GP <- gather(dxbp.GP, indicator, value, 2:ncol(dxbp.GP))
-l_undxbp.GP <- gather(undxbp.GP, indicator, value, 2:ncol(undxbp.GP))
-l_qofbp.GP <- gather(qofbp.GP, indicator,value, 2:ncol(qofbp.GP))
-l_stroke1.GP <- gather(stroke1.GP, indicator, value, 2:ncol(stroke.GP))
+l_depress.gp <- gather(depress.gp, indicator, value, 2:ncol(depress.gp))
+l_chd.gp <- gather(chd.gp, indicator, value, 2:ncol(chd.gp))
+l_stroke.gp <- gather(stroke.gp, indicator, value, 2:ncol(stroke.gp))
+l_dxbp.gp <- gather(dxbp.gp, indicator, value, 2:ncol(dxbp.gp))
+l_undxbp.gp <- gather(undxbp.gp, indicator, value, 2:ncol(undxbp.gp))
+l_stroke1.gp <- gather(stroke1.gp, indicator, value, 2:ncol(stroke1.gp))
+l_pad1.gp <- gather(pad1.gp, indicator, value, 2:ncol(pad1.gp))
+l_copd.gp <- gather(copd.gp, indicator, value, 2:ncol(copd.gp))
 
-l_pad1.GP <- gather(pad1.GP, indicator, value, 2:ncol(pad1.GP))
-l_padimd1.GP <- gather(pad1imd.GP, indicator, value, 2:ncol(pad1imd.GP))
-l_copd.GP <- gather(copd.GP, indicator, value, 2:ncol(copd.GP))
+## Add disease label
 
-## Labels
+l_depress.gp$disease <- "depression"
+l_chd.gp$disease <- "chd"
+l_stroke.gp$disease <- "stroke"
+l_stroke1.gp$disease <- "stroke_IMD"
+l_dxbp.gp$disease <- "bp"
+l_undxbp.gp$disease <- "undx_bp"
+l_pad1.gp$disease <- "pad"
+l_copd.gp$disease <- "copd"
 
-l_depress.GP$disease <- "depression"
-l_chd.GP$disease <- "chd"
-l_stroke.GP$disease <- "stroke"
-l_stroke1.GP$disease <- "stroke_IMD"
-l_dxbp.GP$disease <- "bp"
-l_undxbp.GP$disease <- "undx_bp"
-l_qofbp.GP$disease <- "bp"
-l_pad1.GP$disease <- "pad"
-l_padimd1.GP$disease <- "pad_IMD"
-l_copd.GP$disease <- "copd"
-
-list1 <- list(l_depress.GP, l_chd.GP, l_stroke.GP, l_dxbp.GP, l_undxbp.GP, l_qofbp.GP, l_stroke1.GP, l_pad1.GP, l_padimd1.GP, l_copd.GP)
+list1 <- list(l_depress.gp, l_chd.gp, l_stroke.gp, l_dxbp.gp, l_undxbp.gp, l_stroke1.gp, l_pad1.gp, l_copd.gp)
 
 ## Check table dimensions
 sapply(list1, dim)
 
 sapply(list1, summary)
 
+## Bind rows together
 
-gp_all <- rbindlist(list1)
-dim(gp_all)
-
-gp_all$value <- round(as.numeric(gp_all$value),2)
-summary(gp_all$value)
-
-write.csv(gp_all, file = "comb_gp_prev.csv")
-
-## Identify indicators
-s <- split(gp_all, factor(gp_all$disease))
-s1 <- as.data.frame(unlist(lapply(s, function(x) levels(factor(x$indicator)))))
-colnames(s1) <- "measure"
-s1
-
-## Recode different indicator names as prevalence estimate and QOF estimates
-
-gp_all_prev <- gp_all %>%
-  mutate(prevalence = ifelse(indicator == "Estprevalence" | indicator == "Estimated prevalence" | indicator == "Prevestimate" | indicator == "EstPrev" | indicator == "Estprev" | indicator == "estimate",1,0)) %>%
-  mutate(qof = ifelse(indicator == "QOFprev" | indicator == "QOFprevaelnce201415"| indicator == "QOFprevalence\r\n" | indicator == "QOFprevalence" | indicator == "Prevalence\r\n(per cent)", 1, 0)) 
-
-head(gp_all_prev)
-gp_all_prev$index <- with(gp_all_prev, paste(disease, indicator, sep = "."))
+gpprev<- bind_rows(list1)
+dim(gpprev)
 
 
-gp_all_prev1 <- as.data.table(gp_all_prev %>% filter(prevalence == 1)) %>% select(practice_code, index, value)
-gp_all_prev1 <- gp_all_prev1[-(75511:75512),] ## exclude duplicate rows
-
-## Convert file back to wide format
-wgp <- data.table(spread(gp_all_prev1, index, value))
+## Convert value field to numeric and round to 2 decimal places
 
 
 
-## Convert QOF dato wide format
-gp_all_prev2 <- as.data.table(gp_all_prev %>% filter(qof == 1)) %>% select(practice_code, index, value)
-gp_all_prev2 <- gp_all_prev2[-(30366:30367),]
-
-wgp1 <- data.table(spread(gp_all_prev2, index, value))
-
-
-# Join datasets
-setkey(wgp, practice_code)
-setkey(wgp1, practice_code)
-
-df <- wgp[wgp1]
-
-## NAs
-
-apply(df, 2,  function(x) mean(is.na(x)))
-
-## Simplify column names
-
-colnames(df) <- c("prac.code", "bp(%)", "bp1", "chd", "copd", "depression","pad_IMD", "pad",  "stroke.IMD", "stroke", "bp_notdiag", "bp.qof", "chd.qof", "copd.qof", "depression.qof")
-
-kable(head(df))
-
-
-
-write.csv(df, "prev_est_wide.csv")
-
-
-library(DT)
-datatable(df,
-          extensions = 'Buttons',
-          options = list(
-            dom = 'Bfrtip',
-            buttons = c('copy', 'csv', 'excel', 'pdf', 'print')),
-          caption = "Prevalence and QOF estimates")
-
-dt <- data.frame(df)
-
-dt <- dt %>%
-  select(bp1, bp.qof, depression, depression.qof, chd, chd.qof, copd, copd.qof) %>%
-  mutate(bp.diff = bp1- bp.qof, bp.ave = (bp1 + bp.qof)/2, 
-         dep.diff = depression - depression.qof, dep.ave = (depression + depression.qof)/2,
-         chd.diff = chd - chd.qof, chd.ave = (chd + chd.qof)/2,
-         copd.diff = copd - copd.qof, copd.ave = (copd + copd.qof)/2)
-
-summary(dt)
-
-## Bland Altman plots - plot differences between model and observed vs mean model + observed values
-
-q1 <-qplot(data = dt, 100 * bp.ave, 100 * bp.diff) + 
-  geom_hline(yintercept = 100 * mean(dt$bp.diff, na.rm = TRUE), colour = "red") + 
-  geom_hline(yintercept = 100 * (mean(dt$bp.diff, na.rm = TRUE) + 1.96 * sd(dt$bp.diff, na.rm = TRUE)), colour = "blue") + 
-  geom_hline(yintercept = 100 * (mean(dt$bp.diff, na.rm = TRUE) - 1.96 * sd(dt$bp.diff, na.rm = TRUE)), colour = "blue") 
+# ## write files
+# 
+# write.csv(gpprev, file = "comb_gp_prev.csv")
+# 
+# ## clean up
+# l <- ls()
+# rm(l)
+# ##==================================================================
+# 
+# 
+# ## reload
+# library(readr)
+# prev <- read_csv("comb_gp_prev.csv")
+# 
+# ## summary
+# 
+# summary(prev)
+# 
+# ## there are different labels for QOF, prevalence, list size => more tidying needed
+# ## Identify indicator names
+# s <- split(prev, factor(prev$disease))
+# s1 <- as.data.frame(unlist(lapply(s, function(x) levels(factor(x$indicator)))))
+# colnames(s1) <- "measure"
+# s1 ## list of measure names by disease
+# 
+# 
+# 
+# ## recode
+# 
+# prev$indicator <- ifelse(prev$indicator %in% pop, 'pop', prev$indicator)
+# 
+# 
+# ## check measures
+# 
+# 
+# unique(prev$indicator)
+# 
+# 
+# ##### Recode register variables
+# 
+# qofreg <- c( "Register", "Register201415", "Estregister", "Est-QOF", "QOFregister" )
+# 
+# 
+# ## recode
+# 
+# prev$indicator <- ifelse(prev$indicator %in% qofreg, 'register', prev$indicator)
 
 
-q2 <-qplot(data = dt, dep.ave, dep.diff) + geom_hline(yintercept = mean(dt$dep.diff, na.rm = TRUE), colour = "red") + geom_hline(yintercept = mean(dt$dep.diff, na.rm = TRUE) + 1.96 * sd(dt$dep.diff, na.rm = TRUE), colour = "blue") + geom_hline(yintercept = mean(dt$dep.diff, na.rm = TRUE) - 1.96 * sd(dt$dep.diff, na.rm = TRUE), colour = "blue")
+### NAs
 
-q3 <-qplot(data = dt, chd.ave, chd.diff) + geom_hline(yintercept = mean(dt$chd.diff, na.rm = TRUE), colour = "red")+ geom_hline(yintercept = mean(dt$chd.diff, na.rm = TRUE) + 1.96 * sd(dt$chd.diff, na.rm = TRUE), colour = "blue") + geom_hline(yintercept = mean(dt$chd.diff, na.rm = TRUE) - 1.96 * sd(dt$chd.diff, na.rm = TRUE), colour = "blue")
+mean(is.na(gpprev))
 
-q4 <-qplot(data = dt, copd.ave, copd.diff) + geom_hline(yintercept = mean(dt$chd.diff, na.rm = TRUE), colour = "red")+ geom_hline(yintercept = mean(dt$copd.diff, na.rm = TRUE) + 1.96 * sd(dt$copd.diff, na.rm = TRUE), colour = "blue") + geom_hline(yintercept = mean(dt$copd.diff, na.rm = TRUE) - 1.96 * sd(dt$copd.diff, na.rm = TRUE), colour = "blue")
+### Remove NAs
 
-library(gridExtra)
-grid.arrange(q1, q2, q3, q4, ncol = 2 )
-
-## Some plots and summaries
-
-dev.off()
-require(corrplot)
-df <- data.frame(df)
-cor <- cor(df[,-1], use = 'complete.obs')
-corrplot(cor,  order = 'hclust', tl.cex = 0.5, tl.col = "black", addrect = 2, main = "Correlations between observed and predicted prevalences")
-
-qplot(data = filter(gp_all_prev, prevalence ==1), value, geom = "density", fill = disease) + xlab("Estimated prevalence %") + facet_wrap(~disease, scales = "free") + ggtitle("Density plots of estimated disease prevelance")
-
-qplot(data = filter(gp_all_prev, prevalence ==1| qof ==1),  disease, log10(value), geom = "boxplot", fill = disease) + xlab("Estimated prevalence % (log scale)") + coord_flip() + ggtitle("Variation in practice level prevalence by disease")
+gpprev <- gppprev %>% na.omit() %>% mutate(ind1 = paste(disease, indicator, sep = "-"))
 
 
+#### Reshape
 
-## NAs
+prev1 <- gpprev  %>% select(-disease, -indicator, -X1) %>% spread(ind1, value) 
 
-prevna <-  gp_all_prev %>% 
-  filter(prevalence ==1) %>%
-  group_by(disease) %>%
-  summarise(meanNA = mean(is.na(value)))
+prev1 %>% mutate(`bp-qofprev` = `bp-qofprev` * 100)
 
-qplot(data = prevna, disease, meanNA *100, geom = "point")
+## Add ccg, region and listsize
 
 
-pracNA <- gp_all_prev %>% filter(is.na(value) & prevalence == 1) %>% select(practice_code, disease, value)
-head(pracNA)
+prev1 <- prev1 %>% left_join(ccglookup)
+prev1 <- prev1 %>% left_join(listlookup)
 
-pracNA <- pracNA[-(231:232),]
+prev1 <- prev1 %>% select(1, 33:34, 32,  2:31)
 
-pracNAw <- spread(pracNA, disease, value)
-kable(pracNAw)
+## Save file
+
+write_csv(prev1, paste0("gp.estimates",lubridate::today(), ".csv"))
+
+## and long version
+
+prev1 %>% gather(indicator, value, 4:34) %>% write_csv(paste0("gp.estimates_long",lubridate::today(),".csv"))
+
+
+
+
+
+
+
+
+
+
 
