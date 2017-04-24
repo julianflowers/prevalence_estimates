@@ -1,0 +1,399 @@
+---
+title: 'New chronic disease prevalence estimates: summary and comparison with previous
+  values and QOF'
+date: "`r Sys.Date()`"
+editor_options:
+  chunk_output_type: inline
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+  html_notebook: default
+  pdf_document: default
+  word_document: default
+bibliography: prev.bib
+---
+```{r include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = FALSE)
+```
+
+
+We recently published new estimates of disease prevalence for a range of chronic diseases as part of a wider disease and risk factor prevalence profile which draws together all the estimates from [Fingertips](https://fingertips.phe.org.uk/profile/prevalence).
+
+The new estimates are for:
+
+* Hypertension
+* Coronary heart disease
+* Stroke
+* Heart failure
+* COPD
+* Depression
+* Peripheral arterial disease (PAD)
+
+These estimates were developed by Imperial College and are available for General Practices and lower tier Local Authorities.
+
+The estimates for hypertension, COPD, stroke and coronary heart disease are 'updates' of existing values originally created by the Association of Public Health Observatories. The new estimates are not directly comparable with previous values for a number of reasons:
+
+1. Different data sources (see table)
+2. Different age bands
+3. More model predictors
+4. Improved estimation methods
+
+Disease        | Data source (new estimate) | Data source (old estimate) 
+-------------  | -------------------------- | --------------------------
+Hypertenion    | Health Survey for England  | Health Survey for England [@Mindell2012]
+CHD            | Whitehall II study [@Marmot2005]        | Health Survey for England
+Stroke         | Whitehall II study         | Health Survey for England
+PAD            | Whitehall II study         | NA
+COPD           | CPRD [^1][@Herrett2015]                 | Health Survey for England
+Depression     | Health Survey for Engand   | NA
+Heart failure  | CPRD                       | NA
+
+## Methods
+
+```{r message=FALSE, warning=FALSE, echo = FALSE}
+library(fingertipsR)
+library(dplyr)
+library(govstyle)
+library(ggplot2)
+library(stringr)
+
+prev_prof <- profiles() %>%
+  filter(str_detect(ProfileName, "prevalence"))
+
+
+area_types <- area_types()
+```
+ 
+
+We used the `fingertipsR` package to identify and download the prevalence data via the [Fingertips API](https://fingertips.phe.org.uk/api). The full code is available at [here](). 
+
+We extracted relevant profileIDs and areatype codes using the `profiles` and `area_types` functions. The profileID is `r prev_prof$ProfileID[1]`, and the relevant domainIDs are `r as.character(prev_prof$DomainID[4])` and `r as.character(prev_prof$DomainID[5])`. The area type IDs are `r area_types[area_types$AreaName == "General Practice" ,1]` for GPs and `r area_types[area_types$AreaName == "Local authority districts and Unitary Authorities" ,1][1]` for lower tier local authorities respectively.
+
+Using this information we can download the data from Fingertips using the `fingertips_data` function (the downloads may take a few minutes). The first few records are shown below.
+
+```{r warning=FALSE, cache= TRUE, echo = FALSE}
+
+data <- fingertips_data(ProfileID = 37, DomainID = c(1938132820, 1938133099), AreaTypeID = c(7, 101))
+
+data %>%
+  head() %>%
+  knitr::kable()
+
+
+```
+
+The downloaded dataset needs further preparation:
+
+* selecting relevant indicators
+* recoding data and extracting disease categories
+* categorising estimate types into "New", "QOF" and "Retired"
+
+
+```{r}
+
+# Tidying data
+## Review indicator names
+
+filter <- unique(data$IndicatorName)[c(1:12, 14:16, 19, 23, 25, 28, 32)] ## select indicators
+
+latest <- unique(data$Timeperiod)[c(1, 2, 9)] ## select latest indicators or appropriate time period
+
+
+## filter dataset by time and indicators
+
+data_filter <- data %>% 
+  filter(IndicatorName %in% filter & Timeperiod %in% latest) %>%
+  mutate_if(is.factor, as.character) %>%
+  select(IndicatorName, ParentName, AreaName, AreaCode, AreaType, Age, Timeperiod, Value, LowerCIlimit, UpperCIlimit )
+
+## categorise indicators into retired, new, qof
+
+data_filter1 <- data_filter %>%
+  mutate(`Estimate type` = ifelse(str_detect(IndicatorName, "retired"), "Retired", 
+                           ifelse(str_detect(IndicatorName, "QOF"), "QOF", 
+                           ifelse(str_detect(IndicatorName, "^Dep"), "QOF", 
+                            "New"))))
+         
+                           
+
+data_filter1 <- data_filter1 %>%
+  mutate(Disease = ifelse(str_detect(IndicatorName, "[Hh]ypertension"), "Hypertension", ""), 
+          Disease = ifelse(str_detect(IndicatorName, "[Dd]epression") , "Depresssion", Disease),           Disease = ifelse(str_detect(IndicatorName, "CHD") , "CHD", Disease), 
+          Disease = ifelse(str_detect(IndicatorName, "[Ss]troke") , "Stroke", Disease), 
+          Disease = ifelse(str_detect(IndicatorName, "COPD") , "COPD", Disease),
+          Disease = ifelse(str_detect(IndicatorName, "[Hh]eart") , "Heart failure", Disease),
+          Disease = ifelse(str_detect(IndicatorName, "peripheral") , "PAD", Disease), 
+          Disease = ifelse(str_detect(IndicatorName, "undiagnosed") , "Undiagnosed hypertension", Disease)
+)
+
+
+
+
+```
+
+
+
+# Analysis
+
+## Overall summary
+
+Summary statistics (note there are no local authority values for Isles of Scilly or City of London, due the small numbers and instablity of modelled estimates) are show in the table.
+
+```{r}
+
+## calculate summary metrics
+
+options(digits = 2)
+
+data_filter1 %>%
+  filter(AreaType %in% c("GP", "District & UA")) %>%
+  group_by(AreaType, Disease, `Estimate type`) %>%
+  summarise(Count = n(), 
+            Min = min(Value, na.rm = TRUE),
+           `10th centile` = quantile(Value, probs = 0.1, na.rm = TRUE), 
+            `25th centile` = quantile(Value, probs = 0.25, na.rm = TRUE),
+            Median = median(Value, na.rm = TRUE), 
+            Mean = mean(Value, na.rm = TRUE),
+            `75th centile` = quantile(Value, probs = 0.75, na.rm = TRUE), 
+            `90th cemtile` = quantile(Value, probs = 0.9, na.rm = TRUE), 
+            Max = max(Value, na.rm = TRUE), 
+            SD = sd(Value, na.rm = TRUE),
+            `Missing (%)` = 100 * mean(is.na(Value))
+
+
+            ) %>%
+  knitr::kable(caption = "Summary statistics")
+
+```
+
+## Regional summaries
+
+```{r}
+options(digits = 2)
+library(DT)
+
+data_filter1 %>%
+  filter(AreaType %in% c("District & UA"), `Estimate type` == "New") %>%
+  group_by(Disease, ParentName ) %>%
+  summarise(Count = n(), 
+            Min = min(Value, na.rm = TRUE),
+           `10th centile` = quantile(Value, probs = 0.1, na.rm = TRUE), 
+            `25th centile` = quantile(Value, probs = 0.25, na.rm = TRUE),
+            Median = median(Value, na.rm = TRUE), 
+            Mean = mean(Value, na.rm = TRUE),
+            `75th centile` = quantile(Value, probs = 0.75, na.rm = TRUE), 
+            `90th cemtile` = quantile(Value, probs = 0.9, na.rm = TRUE), 
+            Max = max(Value, na.rm = TRUE), 
+            SD = sd(Value, na.rm = TRUE),
+            `Missing (%)` = 100 * mean(is.na(Value))) -> m
+  datatable(m) %>% formatRound(3:12, 2)
+
+```
+
+
+## Summary variation plot 
+
+```{r fig.height=6, fig.width= 8,  message=FALSE, warning=FALSE, fig.cap= "Prevalence distribution", results="asis"}
+
+
+data_filter1 %>%
+  filter(AreaType %in% c("GP", "District & UA")) %>%
+  ggplot(aes(IndicatorName, Value)) +
+  geom_violin(fill = "#28A197",draw_quantiles = c(0.25,0.5, 0.75)) +
+  coord_flip() +
+  facet_grid(AreaType  + `Estimate type`~ Disease , scales = "free") +
+  theme_gov() +
+  scale_y_log10() +
+  labs(x = "", 
+       title = "Prevalence distributions") +
+  theme(axis.text.y = element_text(size  =6))
+
+
+```
+
+## Correlations
+
+```{r fig.height=6, fig.cap= "Correlation matrix of prevalence estimates"}
+
+library(ggcorrplot)
+
+data_wide <- data_filter1 %>%
+  filter(AreaType %in% c("GP")) %>%
+  select(AreaName, AreaCode, IndicatorName, Value,AreaType) %>%
+  tidyr::spread(IndicatorName, Value) %>%
+  na.omit()
+
+p.mat <-cor_pmat(data_wide[, -c(1:3)]) ## correlation matrix
+
+ggcorrplot(cor(data_wide[, -c(1:3)]), hc.order = TRUE, p.mat = p.mat, 
+           insig = "blank", sig.level = 0.95, 
+           tl.cex = 5,
+           method = "square", colors = c("red", "white", "blue")) +
+  labs(title = "Correlation matrix of prevalence estimates",
+       x= "",
+       y = "") +
+  theme_gov()
+```
+
+
+## Highest correlations
+
+```{r}
+options(digits = 3)
+cor <- Hmisc::rcorr(as.matrix(data_wide[, -c(1:3)]))
+
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+    )
+}
+
+flattenCorrMatrix(cor$r, cor$P) %>%
+  filter(cor > 0.7, str_detect(row, "^Estimate"), !str_detect(row, "retired$" )) %>%
+  arrange(row)%>%
+  knitr::kable()
+
+```
+
+
+
+
+## Mapping local authority estimates
+
+Using the `ggmap` package. [@Kahle2013]
+
+
+
+```{r maps, message=FALSE, warning=FALSE, cache=TRUE}
+library(ggmap)
+library(rgdal)
+library(geojsonio)
+library(ggfortify)
+library(viridis)
+
+## Read LA boundaries from the ONS Geography portal (generalised boundaries)
+
+la <- geojson_read("http://geoportal.statistics.gov.uk/datasets/686603e943f948acaa13fb5d2b0f1275_2.geojson", what = "sp")
+
+la_eng <- subset(la, substr(lad16cd, 1, 1) == "E")
+
+la_eng1 <- fortify(la_eng, region = "lad16cd")
+
+data_for_map <- data_filter1 %>%
+  filter(AreaType == "District & UA")
+
+map_data <- la_eng1 %>%
+  left_join(data_for_map, by = c("id" = "AreaCode")) %>%
+  filter(Disease != "NA")
+```
+
+
+```{r, cache=TRUE}
+
+
+for(i in unique(map_data$Disease)){
+g <- ggplot() +
+  geom_polygon(data = filter(map_data, Disease == i),  
+               aes(long, lat, 
+               group = group,
+               fill = Value)) +
+  coord_map() + scale_fill_viridis(direction = -1,
+                       option = "plasma",
+                       name = paste("Prevalence of ", i)) +
+  theme_nothing(legend = TRUE ) +
+  labs(title = paste("Prevalence (%):", i))
+
+## Enhance - 'theme_nothing' removes the background, viridis is a heatmap colour palette
+
+print(g) 
+}
+```
+
+## Highest and lowest prevalences
+
+```{r fig.height=4}
+
+data_for_map %>%
+  filter(`Estimate type` == "New") %>%
+  group_by(Disease) %>%
+  top_n(10, Value) %>%
+  select(Disease, AreaName, Value, LowerCIlimit, UpperCIlimit) %>%
+  arrange(-Value) %>%
+  ggplot(aes(reorder(AreaName,  Value),Value, colour = Disease)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = LowerCIlimit, ymax = UpperCIlimit )) +
+  coord_flip() + 
+  labs(x="", 
+       title = "Areas with 10 highest estimated prevalence by disease") +
+  theme_gov() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~Disease, nrow = 1,  labeller = labeller(Disease = label_wrap_gen(10)))
+  
+
+
+```
+
+## Cluster analysis
+
+Group together local authorities and general practices on the basis similarity across prevalence estimates. Using k-means analysis.
+
+```{r message=FALSE, warning=FALSE}
+library(tidyr)
+library(broom)
+library(factoextra)
+library(FactoMineR)
+
+## Select out LTLA only
+
+d <- data_filter1 %>% 
+  filter(`Estimate type` == "New", AreaType == "District & UA") %>%
+  select(AreaName, Disease, Value) %>% 
+  group_by(Disease) %>%
+  mutate(scaled = scale(Value)) %>%
+  select(-Value) %>%
+  spread(Disease, scaled) %>%
+  data.frame()
+
+
+rownames(d) <- d$AreaName
+
+set.seed(123)
+
+k <- 3
+
+k_d <- hkmeans(d[,-1], 5)
+
+## Clustering of local authorities
+fviz_cluster(k_d, frame.type = "norm", frame.level = 0.68, outlier.color = "black", labelsize = 5) +
+  theme_gov() +
+  geom_vline(xintercept = 0, lty = "dotted") +
+  geom_hline(yintercept = 0,  lty = "dotted")
+
+
+
+
+
+```
+
+### Dimensions
+
+```{r message=FALSE, warning=FALSE}
+pca <- PCA(d[, -1])
+f1 <- fviz_pca_contrib(pca, choice = "var", axes = 1)
+f2 <- fviz_pca_contrib(pca, choice = "var", axes = 2)
+
+gridExtra::grid.arrange(f1, f2, ncol = 2)
+```
+
+
+
+### References
+
+
+
+[^1]: Clinical Practice Research Datalink - a GP dataset
